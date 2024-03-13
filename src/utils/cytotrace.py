@@ -60,22 +60,22 @@ class CytoTRACE():
     
     def get_counts(self, threshold: float = 0.1):
         """
-        Returns the count of cells identified as lowly differentiated by CytoTRACE
+        Returns the count of cells identified with low differentiation potential by CytoTRACE
         under a given threshold
 
         Args:
-            threshold (float): Threshold which marks which cells are taken as lowly differentiated (e.g. a threshold
-            of 0.2 means that all cells with CytoTRACE score < 0.2 will be taken as lowly differentiated)
+            threshold (float): Threshold which marks which cells are taken with low differentiation potential (e.g. a threshold
+            of 0.2 means that all cells with CytoTRACE score > 0.2 will be taken with lowldifferentiation potential)
 
         Returns:
             counts (Counter): The counts
         """
 
-        # Indexes of the cells that have a CytoTRACE score < threshold
+        # Indexes of the cells that have a CytoTRACE score > threshold
         indexes = [index for index in range(len(self.anndata.obs['ct_score'])) if self.anndata.obs['ct_score'][index] <= threshold]
 
         # Transform cells to annotation
-        cells = self.anndata.var["annotation"][indexes]
+        cells = self.anndata.obs["annotation"][indexes]
 
         # Return count
         return Counter(cells)

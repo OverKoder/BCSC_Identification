@@ -1,13 +1,16 @@
-from scanpy import AnnData, pp, tl
 from collections import Counter
-
 import numpy as np
-import pandas as pd
 from numpy import ndarray
-from torch import Tensor, from_numpy
-from typing import Tuple
-
+from typing import Tuple, Union
+from scanpy import AnnData, pp, tl
 from math import ceil
+
+import pandas as pd
+from torch import Tensor, from_numpy
+import pickle as pk
+from scipy.sparse import csc_matrix
+from tqdm import tqdm
+
 
 def get_gene_index(data: AnnData, gene_name: str) -> int:
     """
@@ -207,3 +210,65 @@ def fold_change_values(data: AnnData, mean_path:str, save_path: str):
     # Save DataFrame
     df_save.to_csv(save_path + '.csv')
     return
+
+def format_cells(data: np.ndarray, feature_names: Union[list, np.ndarray], show_progress: bool = False) -> np.ndarray:
+    """
+    Prepares the data matrix in order to be able to be used by the ML models by making a new data matrix where the genes are
+    located in the way that the models accept. Since each dataset measures different genes and records them in different positions
+    it makes it impossible for (some) ML Models to compute predictions with different sizes of input and positions of features.
+
+    Args:
+        data (np.ndarray): The data matrix of shape (C x G) where C is the number of cells and G is the number of genes.
+        feature_names (list or np.ndarray): List of the gene (or feature) names (e.g. feature_names = ['CD44', 'SOX4']), usually
+        taken from anndata.var.
+        show_progress (bool): Whether to show progress or not
+
+    Raises:
+        TypeError: 'data' is not a np.ndarray.
+        TypeError: 'feature_names' is not a list or np.ndarray.
+        TypeError: 'show_progress' is not a bool.
+
+    Returns:
+        np.ndarray: The new data matrix (with zeroes on the gene that are missing).
+    """
+
+    if not isinstance(data, np.ndarray): raise TypeError("'data' is not a np.ndarray.")
+    if not (isinstance(feature_names, list) or isinstance(feature_names, np.ndarray)): raise TypeError("'feature_names' is not a list or np.ndarray.")
+    if not isinstance(show_progress, bool): raise TypeError("'show_progress' is not a bool.")
+
+    # Load a dictionary of genes -> index to know where to place the genes in the
+    # new data matrix
+    format_dict = pk.load(open('objects/all_genes_dict.pk','rb'))
+    
+    # Transform the gene names to indexes
+    new_genes_indexes, original_genes_indexes = [], []
+    for index, gene in enumerate(feature_names):
+
+        # Check if the gene exists in the format_dict
+        try:
+            new_genes_indexes.append(format_dict[gene])
+            original_genes_indexes.append(index)
+            
+        # If the gene is not recorded, pass
+        except:
+            pass
+
+    # New data matrix and convert the previouse one to compressed sparse column for efficiency
+    if show_progress:
+        print("Converting to sparse matrix for efficiency...")
+    data = csc_matrix(data)
+    new_data = csc_matrix(np.zeros((data.shape[0], len(format_dict))))
+
+    # Transfer recorded genes from original data matrix to the new one
+    # For some easion scipy crashes when trying to transfer a lot of columns
+    # so we transfer them in batches
+
+    if show_progress:
+        for i in tqdm(range((len(original_genes_indexes) // 1000) + 1), desc = "Creating new data matrix..."):
+            new_data[:, new_genes_indexes[i * 1000: (i+1) * 1000]] = data[:, original_genes_indexes[i * 1000: (i+1) * 1000]]
+
+    else:
+        for i in range((len(original_genes_indexes) // 1000) + 1):
+            new_data[:, new_genes_indexes[i * 1000: (i+1) * 1000]] = data[:, original_genes_indexes[i * 1000: (i+1) * 1000]]
+
+    return new_data.toarray().astype(np.float32)

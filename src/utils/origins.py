@@ -94,8 +94,7 @@ class ORIGINS():
 
                     # If the gene is not in the data, ignore it
                     pass
-
-        useful_genes = sorted(useful_genes, key = lambda x:x[0])
+        
         self.useful_genes_name, self.useful_genes_idx = zip(*useful_genes)
 
         # Generate a dictionary which relates genes to the index of the gene in the original matrix
