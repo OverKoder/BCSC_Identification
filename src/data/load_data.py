@@ -1,13 +1,14 @@
 from typing import Union
-import numpy as np
 
+from src.ml.sparsedataset import SparseDataset
 from src.data.process_data import format_cells
 
 import scanpy
+import numpy as np
 from sklearn.model_selection import train_test_split
 from torch import Generator, from_numpy
 from torch.utils.data import TensorDataset, DataLoader, random_split
-from scipy.sparse import csr_matrix, csc_matrix
+from scipy.sparse import csr_matrix, csc_matrix, load_npz
 
 def load_data(path: str):
     """
@@ -20,12 +21,33 @@ def load_data(path: str):
         TypeError: If path is not a string.
 
     Returns
-        scanpy.AnnData: The AnnData object.
+        scipy.sparse.csr_matrix: The data as a sparse matrix.
     """
 
     if not isinstance(path, str): raise TypeError("'path' is not a string.")
 
-    return scanpy.read(path)
+    # Use scanpy
+    if path.endswith('h5ad'):
+
+        # Load h5ad
+        data = scanpy.read_h5ad(path).X
+
+        # Transform to csr
+        if not isinstance(data, csr_matrix):
+            data = csr_matrix(data)
+
+    # Load with scipy
+    elif path.endswith('npz'):
+
+        # Load npz
+        data = load_npz(path)
+
+        # Transform to csr
+        if not isinstance(data, csr_matrix):
+            data = csr_matrix(data)
+
+    return data.astype(np.float32)
+    
 
 def build_labels(annotation: Union[list, np.ndarray], positives: list):
     """
@@ -49,7 +71,7 @@ def build_labels(annotation: Union[list, np.ndarray], positives: list):
     if not isinstance(positives, list): raise TypeError("'positives' is not a list.")
     if not all([name in annotation for name in positives]): raise ValueError("The names inside 'positives' are not inside the annotation list, please double check.")
     
-    return np.array([[1 if annot in positives else 0 for annot in annotation]]).T
+    return np.array([[1 if annot in positives else 0 for annot in annotation]]).T.astype(np.float32)
 
 def get_gene_slice(feature_names: Union[list, np.ndarray], gene_slice: Union[list, np.ndarray]):
     """
@@ -141,41 +163,31 @@ def get_dataloaders(
     if not isinstance(do_format_cells, int): raise TypeError("'do_format_cells is not a bool")
     if not isinstance(random_state, int): raise TypeError("'random_state is not an int")
 
-    # Load data
-    anndata = load_data(data_path)
+    # Load sparse data matrix
+    sparse_data = load_data(data_path)
 
     # Get labels
     labels = build_labels(annotation, positives)
-
-    # Sometimes the AnnData matrix are stored as sparse matrices, so have to check that
-    if isinstance(anndata.X, csr_matrix) or isinstance(anndata.X, csc_matrix):
-        all_data = anndata.X.toarray()
-
-    else:
-        all_data = anndata.X 
-
-    # To save memory, we delete the AnnData object, since we really only need the data matrix
-    del anndata
     
     # Slice data if need, in order to match some samples with the annotation provided
     if cell_slice is not None:
-        all_data = all_data[cell_slice, :]
+        sparse_data = sparse_data[cell_slice, :]
 
     # Slice genes if needed, to ignore some genes or make some tests.
     if gene_slice is not None:
         gene_slice = get_gene_slice(feature_names, gene_slice)
-        all_data = all_data[:, gene_slice]
+        sparse_data = sparse_data[:, gene_slice]
 
+    # Format the cells
     if do_format_cells:
-        # Format the cells
-        all_data = format_cells(all_data, feature_names, show_progress = True)
+        sparse_data = format_cells(sparse_data, feature_names, show_progress = True)
 
     # Check if there are the same samples as labels
-    if all_data.shape[0] != labels.shape[0]:
-        print("WARNING! The number of samples in the dataset: " + str(all_data.shape[0]) + " does not match the number of labels: " + str(labels.shape[0]))
+    if sparse_data.shape[0] != labels.shape[0]:
+        print("WARNING! The number of samples in the dataset: " + str(sparse_data.shape[0]) + " does not match the number of labels: " + str(labels.shape[0]))
 
     # Split data
-    train_dataset, val_dataset, test_dataset = random_split(TensorDataset(from_numpy(all_data), from_numpy(labels).float()), lengths = ratios, generator = Generator().manual_seed(random_state))
+    train_dataset, val_dataset, test_dataset = random_split(SparseDataset(sparse_data, labels), lengths = ratios, generator = Generator().manual_seed(random_state))
 
     # Create dataloaders
     train_dataloader = DataLoader(dataset = train_dataset, batch_size = batch_size, shuffle = True)

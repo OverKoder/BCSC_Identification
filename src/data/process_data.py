@@ -8,7 +8,7 @@ from math import ceil
 import pandas as pd
 from torch import Tensor, from_numpy
 import pickle as pk
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_matrix, csr_matrix
 from tqdm import tqdm
 
 
@@ -271,4 +271,4 @@ def format_cells(data: np.ndarray, feature_names: Union[list, np.ndarray], show_
         for i in range((len(original_genes_indexes) // 1000) + 1):
             new_data[:, new_genes_indexes[i * 1000: (i+1) * 1000]] = data[:, original_genes_indexes[i * 1000: (i+1) * 1000]]
 
-    return new_data.toarray().astype(np.float32)
+    return csr_matrix(new_data).astype(np.float32)
