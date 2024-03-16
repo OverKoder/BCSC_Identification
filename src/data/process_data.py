@@ -232,7 +232,7 @@ def format_cells(data: np.ndarray, feature_names: Union[list, np.ndarray], show_
         np.ndarray: The new data matrix (with zeroes on the gene that are missing).
     """
 
-    if not isinstance(data, np.ndarray): raise TypeError("'data' is not a np.ndarray.")
+    if not (isinstance(data, np.ndarray) or isinstance(data, csr_matrix)): raise TypeError("'data' is not a np.ndarray or a csr matrix.")
     if not (isinstance(feature_names, list) or isinstance(feature_names, np.ndarray)): raise TypeError("'feature_names' is not a list or np.ndarray.")
     if not isinstance(show_progress, bool): raise TypeError("'show_progress' is not a bool.")
 
