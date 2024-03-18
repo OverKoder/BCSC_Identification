@@ -211,6 +211,68 @@ def fold_change_values(data: AnnData, mean_path:str, save_path: str):
     df_save.to_csv(save_path + '.csv')
     return
 
+def get_format_index(gene: str, gene_format: dict, ensg_mapping: pd.DataFrame) -> int:
+    """
+    Given a gene name, returns the index of the column to which the gene expression data
+    should be placed. If the gene is not recorded in the gene_format dictionary then it is skipped
+
+    Args:
+        gene (str): The name of the gene (accepts ENSG gene name)
+        gene_format (dict): Dictionary of the gene format (usually already loaded).
+        ensg_mapping (pd.DataFrame): DataFrame which maps ENGS genes to gene names (usually already loaded).
+
+    Raises:
+        TypeError: 'gene'is not a str
+
+    Returns:
+        index (int): The index of the column where the gene expression data should be placed, returns -1 if 
+        the gene is not recorded in the gene_format diciontary
+
+    """
+
+    if not isinstance(gene, str): raise TypeError("'gene' is not a str")
+
+    # First transform 'ENSG' type genes with the mapping
+    if gene.startswith('ENSG'):
+        
+        # Transform 'ENSG'
+        try:
+            gene = ensg_mapping.loc[gene]['Gene name']
+
+            # Sometimes there are repeated because of the synonyms, in the case
+            # that is not unique we make it unique
+            if not isinstance(gene, str):
+                gene = gene.unique()[0]
+        
+        # If 'ENSG' type gene is not in the mapping it is skipped
+        except:
+            return -1
+        
+    # Now check if it exists directly in the format dictionary
+    try:
+        index = gene_format[gene]
+        return index
+    # Gene is not in the gene_format dictionary
+    except:
+        pass
+
+    # Check if the gene has synonyms in the dictionary
+    synonyms = ensg_mapping[ensg_mapping['Gene Synonym'] == gene]['Gene name'].unique()
+    for synonym in synonyms:
+
+        # Check if the synonym exists in the format dictionary
+        try:
+            index = gene_format[synonym]
+            return index
+        
+        # Synonym does not exist
+        except:
+            pass
+    
+    # If the gene is not already in the dictionary, and has no synonyms in it, skip it
+    return -1
+
+    # If the 
 def format_cells(data: np.ndarray, feature_names: Union[list, np.ndarray], show_progress: bool = False) -> np.ndarray:
     """
     Prepares the data matrix in order to be able to be used by the ML models by making a new data matrix where the genes are
@@ -237,21 +299,18 @@ def format_cells(data: np.ndarray, feature_names: Union[list, np.ndarray], show_
     if not isinstance(show_progress, bool): raise TypeError("'show_progress' is not a bool.")
 
     # Load a dictionary of genes -> index to know where to place the genes in the
-    # new data matrix
-    format_dict = pk.load(open('objects/all_genes_dict.pk','rb'))
-    
+    # new data matrix and the ENSG mapping
+    format_dict = pk.load(open('objects/gene_format.pk','rb'))
+    ensg_mapping = pd.read_csv('objects/ensg_mapping.csv', index_col = 0)
+
     # Transform the gene names to indexes
     new_genes_indexes, original_genes_indexes = [], []
-    for index, gene in enumerate(feature_names):
+    for original_index, gene in enumerate(feature_names):
 
-        # Check if the gene exists in the format_dict
-        try:
-            new_genes_indexes.append(format_dict[gene])
-            original_genes_indexes.append(index)
-            
-        # If the gene is not recorded, pass
-        except:
-            pass
+        index = get_format_index(gene, format_dict, ensg_mapping)
+        if index != -1:
+            new_genes_indexes.append(index)
+            original_genes_indexes.append(original_index)
 
     # New data matrix and convert the previouse one to compressed sparse column for efficiency
     if show_progress:
