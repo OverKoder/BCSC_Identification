@@ -51,7 +51,7 @@ def plot_pr_curves(true_labels: Union[np.ndarray, list], pred_probs_list: Union[
         precision, recall , _ = precision_recall_curve(true_labels, pred_probs_list[i])
 
         # Plot the PR Curve
-        plt.plot(recall[1:-1], precision[1:-1], linestyle = 'solid', linewidth = 3,  label = labels_list[i])
+        plt.plot(recall[:-1], precision[:-1], linestyle = 'solid', linewidth = 3,  label = labels_list[i])
 
     # In the plot we show a blue line of a classifier which has no knowledge (which shows as a flat line)
     no_knowledge = len(true_labels[true_labels==1]) / len(true_labels)
@@ -122,6 +122,11 @@ def plot_roc_auc_curves(true_labels: np.ndarray, pred_probs_list: list, labels_l
         # Plot one ROC-AUC curve
         plt.plot(fpr, tpr, label = labels_list[i] + ' AUC = %0.3f' % auc_value, ls = 'solid')
 
+    # Plot a no knowledge line (A classifier with no knowledge could be one that always predicts the majority class)
+    fpr, tpr, _ = roc_curve(true_labels, [0 for _ in range(len(true_labels))])
+    auc_value =  auc(fpr, tpr)
+    plt.plot(fpr, tpr, label = 'No Knowledge' + ' AUC = %0.3f' % auc_value, linestyle='--')
+
     # Axis labels
     plt.ylabel('True Positive Rate')
     plt.xlabel('False Positive Rate')
@@ -138,30 +143,32 @@ def plot_roc_auc_curves(true_labels: np.ndarray, pred_probs_list: list, labels_l
 
     return
 
-def plot_tsne(embeddings: np.ndarray, labels: list, perplexity: int, path: str, n_classes: int = 2, random_state: int = 42 ) -> None:
+def plot_tsne(embeddings: np.ndarray, labels: list, perplexity: int, path: str, title: str, n_classes: int = 2, random_state: int = 42 ) -> None:
     """
     Creates a 2D t-SNE plot of the given embeddings
 
     Args:
-        embeddings (np.ndarray): The datapoints (embeddings or just raw/original datapoints) to plot.
+        embeddings (np.ndarray or scipy.sparse): The datapoints (embeddings or just raw/original datapoints) to plot.
         labels: List which contains the labels for the cells (can be strings).
         perplexity (int): Perplexity in t-SNE.
         path (str): Path to save the plot
+        title (str): Title of the plot
+        n_classes (int): Number of classes in the data (for color legend)
         random_state (int): Seed for initialization.
 
     Raises:
-        TypeError: 'embeddings' is not a np.ndarray.
         TypeError: 'labels' is not a list.
         TypeError: 'perplexity' is not an int.
         TypeError: 'path' is not an str.
+        TypeError: 'title' is not an str.
         TypeError: 'n_classes' is not an int.
         TypeError: 'random_state' is not an int.
     """
 
-    if not isinstance(embeddings, np.ndarray): raise TypeError(" 'embeddings' is not a np.ndarray.")
     if not (isinstance(labels, list) or isinstance(labels, np.ndarray)): raise TypeError(" 'labels' is not a list or a np.ndarray.")
     if not isinstance(perplexity, int): raise TypeError(" 'perplexity' is not an int.")
     if not isinstance(path, str): raise TypeError(" 'path' is not a string.")
+    if not isinstance(title, str): raise TypeError(" 'title' is not a string.")
     if not isinstance(n_classes, int): raise TypeError(" 'n_classes' is not an int.")
     if not isinstance(random_state, int): raise TypeError(" 'random_state' is not an int.")
 
@@ -179,6 +186,16 @@ def plot_tsne(embeddings: np.ndarray, labels: list, perplexity: int, path: str, 
     )
 
     scatter.legend(loc='center right', bbox_to_anchor=(1.1, 0.5), ncol=1)
+    leg_handles, leg_labels = scatter.get_legend_handles_labels()
+
+    leg = plt.legend(leg_handles, leg_labels, bbox_to_anchor=(1.1,0.5), loc='center right', borderaxespad=0)
+    for lh in leg.legendHandles: 
+        lh.set_alpha(1)
+        
+    plt.xticks([])
+    plt.yticks([])
+
+    plt.title(title)
 
     # Save plot and clear
     plt.savefig(path + '.png', bbox_inches='tight')

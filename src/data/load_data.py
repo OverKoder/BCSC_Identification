@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from torch import Generator, from_numpy
 from torch.utils.data import TensorDataset, DataLoader, random_split
 from scipy.sparse import csr_matrix, csc_matrix, load_npz
+from scipy.sparse import vstack as csr_vstack
 
 def load_data(path: str):
     """
@@ -112,10 +113,10 @@ def get_gene_slice(feature_names: Union[list, np.ndarray], gene_slice: Union[lis
 def get_dataloaders(
         data_path: str, annotation: Union[list, np.ndarray], positives: list, ratios: list, feature_names: Union[list, np.ndarray],
         batch_size: int, cell_slice: Union[list, np.ndarray] = None, gene_slice: Union[list, np.ndarray] = None,
-        do_format_cells: bool = True, random_state: int = 42
+        do_format_cells: bool = True, format_dict: str = 'objects/cell_format_dict.pk',  random_state: int = 42
     ):
     """
-    Loads and returns the dataloaders for PyTorch
+    Loads and returns the dataloaders from one single data file for PyTorch
 
     Args:
         data_path (str): Path to the data (an .h5ad or .mtx). WARNING: In the AnnData data matrix the cells must be located by rows
@@ -145,6 +146,7 @@ def get_dataloaders(
         TypeError: 'cell_slice' is not a list or np.ndarray.
         TypeError: 'gene_slice' is not a list or np.ndarray.
         TypeError: 'do_format_cells' is not a bool.
+        TypeError: 'format_dict' is not a string.
         TypeError: 'random_state is not an int.
 
     Returns
@@ -161,6 +163,7 @@ def get_dataloaders(
     if cell_slice is not None and not (isinstance(cell_slice, list) or isinstance(cell_slice, np.ndarray)): raise TypeError("'cell_slice' is not a list or np.ndarray")
     if gene_slice is not None and not (isinstance(gene_slice, list) or isinstance(gene_slice, np.ndarray)): raise TypeError("'gene_slice' is not a list or np.ndarray")
     if not isinstance(do_format_cells, int): raise TypeError("'do_format_cells is not a bool")
+    if not isinstance(format_dict, str): raise TypeError("'format_dict' is not a string.")
     if not isinstance(random_state, int): raise TypeError("'random_state is not an int")
 
     # Load sparse data matrix
@@ -180,7 +183,7 @@ def get_dataloaders(
 
     # Format the cells
     if do_format_cells:
-        sparse_data = format_cells(sparse_data, feature_names, show_progress = True)
+        sparse_data = format_cells(sparse_data, feature_names, format_dict)
 
     # Check if there are the same samples as labels
     if sparse_data.shape[0] != labels.shape[0]:
@@ -190,6 +193,7 @@ def get_dataloaders(
     train_dataset, val_dataset, test_dataset = random_split(SparseDataset(sparse_data, labels), lengths = ratios, generator = Generator().manual_seed(random_state))
 
     # Create dataloaders
+    # num_workers = 16, pin_memory = True
     train_dataloader = DataLoader(dataset = train_dataset, batch_size = batch_size, shuffle = True)
     val_dataloader = DataLoader(dataset = val_dataset, batch_size = batch_size, shuffle = False)
     test_dataloader = DataLoader(dataset = test_dataset, batch_size = batch_size, shuffle = False)

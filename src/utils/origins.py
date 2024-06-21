@@ -1,10 +1,11 @@
+from collections import Counter
+
 import pandas as pd
 from tqdm import tqdm
 from scanpy import AnnData
 from scipy.sparse import csr_matrix
 import numpy as np 
-import time
-from collections import Counter
+
 
 class ORIGINS():
 
@@ -186,8 +187,6 @@ class ORIGINS():
 
     def run(self):
 
-        t1 = time.time()
-
         # First, get the useful genes
         self._get_useful_genes()
 
@@ -196,11 +195,6 @@ class ORIGINS():
 
         # Lastly, run origins
         result = self._origins()
-
-        t2 = time.time()
-        
-        if self.show_progress:
-            print("Time elapsed:", t2-t1, "seconds")
         
         return result
 

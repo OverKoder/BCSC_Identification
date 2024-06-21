@@ -1,8 +1,10 @@
+from collections import Counter
+
 import cellrank as cr
 from cellrank.kernels import CytoTRACEKernel
 import scvelo as scv
 from scanpy import AnnData
-from collections import Counter
+
 
 class CytoTRACE():
 
